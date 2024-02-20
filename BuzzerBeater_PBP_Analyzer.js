@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BuzzerBeater PBP Analyzer
 // @namespace    http://tampermonkey.net/
-// @version      0.0.1
+// @version      0.0.2
 // @description  Analyze Buzzerbeater play-by-play for more information.
 // @author       AtomicNucleus
 // @match        https://www.buzzerbeater.com/match/*/pbp.aspx
@@ -22,6 +22,41 @@
         return ar3;
     }
 
+    // Get Position by Time Dist
+    function getPosition(MINUTE, playerStat) {
+        let M = MINUTE.slice(1, );
+        let i = M.indexOf(Math.max(...M));
+        if (M[i] == 0 && MINUTE[0] == 0) {
+            let a = '<b>&nbsp &nbsp &nbsp</b>';
+        } else if (M[i] == 0 && MINUTE[0] > 0) { a = ''; } else {
+            switch (i) {
+                case 0:
+                    a = '<b>PG&nbsp</b>';
+                    break;
+                case 1:
+                    a = '<b>SG&nbsp</b>';
+                    break;
+                case 2:
+                    a = '<b>SF&nbsp</b>';
+                    break;
+                case 3:
+                    a = '<b>PF&nbsp</b>';
+                    break;
+                case 4:
+                    a = '<b>C&nbsp &nbsp</b>';
+                    break;
+            }
+        }
+
+        if (playerStat.IsStarter == 1) {
+            return a + '<b>' + playerStat.name.split(' (')[0] + '</b>';
+        } else {
+            return a + playerStat.name.split(' (')[0];
+        }
+
+    }
+
+
     // Get Names
     const pbp = document.getElementById("cbPbp");
     const names = pbp.querySelectorAll("div table tr td table tr td a");
@@ -29,12 +64,12 @@
     var PlayersA = [];
     var PlayersH = [];
     for (let i = 0; i < 12; i++) {
-        if (names[i].innerHTML.length > 0) {
+        if ((names[i].innerHTML.length > 0) || (i < 5)) {
             PlayersA.push(names[i].innerHTML);
         }
     }
     for (let i = 12; i < 24; i++) {
-        if (names[i].innerHTML.length > 0) {
+        if ((names[i].innerHTML.length > 0) || (i < 17)) {
             PlayersH.push(names[i].innerHTML);
         }
     }
@@ -56,7 +91,8 @@
         teamA.push({
             name: PlayersA[p],
             OnCourt: 0,
-            MINUTE: 0,
+            IsStarter: 0,
+            MINUTE: Array(6).fill(0), // 0-total, 1-PG, 2-SG, 3-SF, 4-PF, 5-C
             ISM: Array(3).fill(0), // [Total,Contested,Assisted]
             ISA: Array(3).fill(0),
             JSM: Array(3).fill(0),
@@ -84,7 +120,8 @@
         teamH.push({
             name: PlayersH[p],
             OnCourt: 0,
-            MINUTE: 0,
+            IsStarter: 0,
+            MINUTE: Array(6).fill(0), // 0-total, 1-PG, 2-SG, 3-SF, 4-PF, 5-C
             ISM: Array(3).fill(0), // [Total,Contested,Assisted]
             ISA: Array(3).fill(0),
             JSM: Array(3).fill(0),
@@ -109,9 +146,22 @@
     }
 
     for (var k = 0; k < 5; k++) {
-        teamA[k].OnCourt = 1;
-        teamH[k].OnCourt = 1;
+        teamA[k].OnCourt = k + 1;
+        teamA[k].IsStarter = 1;
     }
+
+    for (var k = 0; k < 5; k++) {
+        teamH[k].OnCourt = k + 1;
+        teamH[k].IsStarter = 1;
+    }
+
+    // 去除空球员（上场球员不足的情况）
+
+    var teamA = teamA.filter(item => item.name.length > 0);
+    var teamH = teamH.filter(item => item.name.length > 0);
+    var PlayersA = PlayersA.filter(item => item.length > 0);
+    var PlayersH = PlayersH.filter(item => item.length > 0);
+
 
     // 事件分类
 
@@ -158,63 +208,82 @@
             case 2:
                 break;
             case 3: //line
-                var des = lines[logline].innerHTML; //H([^HS]{1,})S
-                while (des.test(/<([^<>]{1,})>/)) {
-                    des = des.replace(/<([^<>]{1,})>/, '');
+                const preDes = lines[logline];
+                var des = preDes.cloneNode(true); //H([^HS]{1,})S
+                // Extract players from <a> elements
+
+                var relatedPlayersNameList = des.getElementsByTagName('a');
+                var relatedPlayersSequence = [];
+                for (let k = 0; k < relatedPlayersNameList.length; k++) {
+                    if (PlayersA.includes(relatedPlayersNameList[k].innerHTML)) {
+                        relatedPlayersSequence.push({ team: 0, ind: PlayersA.indexOf(relatedPlayersNameList[k].innerHTML) });
+                    } else if (PlayersH.includes(relatedPlayersNameList[k].innerHTML)) {
+                        relatedPlayersSequence.push({ team: 1, ind: PlayersH.indexOf(relatedPlayersNameList[k].innerHTML) });
+                    } else {
+                        relatedPlayersSequence.push({ team: 2, ind: 0 });
+                    }
+
                 }
 
-
-
                 for (var i = 0; i < teamA.length - 1; i++) {
-                    if (teamA[i].OnCourt == 1) {
-                        teamA[i].MINUTE += updatetime;
-
+                    if (teamA[i].OnCourt >= 1) {
+                        teamA[i].MINUTE[0] += updatetime;
+                        teamA[i].MINUTE[teamA[i].OnCourt] += updatetime;
                     }
                 }
                 for (var i = 0; i < teamH.length - 1; i++) {
-                    if (teamH[i].OnCourt == 1) {
-                        teamH[i].MINUTE += updatetime;
+                    if (teamH[i].OnCourt >= 1) {
+                        teamH[i].MINUTE[0] += updatetime;
+                        teamH[i].MINUTE[teamH[i].OnCourt] += updatetime;
                     }
                 }
 
-                var cleanDes = des;
-                var indexA = Array(PlayersA.length).fill(0)
-                var indexA_back = Array(PlayersA.length).fill(0)
-                for (var l = 0; l < PlayersA.length; l++) {
-                    indexA[l] = des.indexOf(PlayersA[l]);
-                    indexA_back[l] = des.lastIndexOf(PlayersA[l]);
-                    var cleanDes = cleanDes.replaceAll(PlayersA[l], "%");
-                }
-                var indexH = Array(PlayersH.length).fill(0)
-                var indexH_back = Array(PlayersH.length).fill(0)
-                for (var l = 0; l < PlayersH.length; l++) {
-                    indexH[l] = des.indexOf(PlayersH[l]);
-                    indexH_back[l] = des.lastIndexOf(PlayersH[l]);
-                    var cleanDes = cleanDes.replaceAll(PlayersH[l], "%");
-                }
+                Array.prototype.slice.call(des.getElementsByTagName('a')).forEach(
+                    function(item) {
+                        item.outerHTML = '%';
+                        // or item.parentNode.removeChild(item); for older browsers (Edge-)
+                    });
+
+                var cleanDes = des.innerHTML;
+
+                // var indexA = Array(PlayersA.length).fill(0)
+                // var indexA_back = Array(PlayersA.length).fill(0)
+                // for (var l = 0; l < PlayersA.length; l++) {
+                //     indexA[l] = des.indexOf(PlayersA[l]);
+                //     indexA_back[l] = des.lastIndexOf(PlayersA[l]);
+                //     var cleanDes = cleanDes.replaceAll(PlayersA[l], "%");
+                // }
+                // var indexH = Array(PlayersH.length).fill(0)
+                // var indexH_back = Array(PlayersH.length).fill(0)
+                // for (var l = 0; l < PlayersH.length; l++) {
+                //     indexH[l] = des.indexOf(PlayersH[l]);
+                //     indexH_back[l] = des.lastIndexOf(PlayersH[l]);
+                //     var cleanDes = cleanDes.replaceAll(PlayersH[l], "%");
+
                 var slice = cleanDes.replaceAll(/ /g, "");
                 var slice = slice.replaceAll(/，|。|！|”|“/g, " ");
                 var slice = slice.split(/ +/g);
                 var slice = slice.filter(function(e) { return e });
 
-                // 提取球员序号
-                var relatedPlayers_forward = []
-                var relatedPlayers_backward = []
-                for (var n = 0; n < PlayersA.length; n++) {
-                    if (indexA[n] >= 0) {
-                        relatedPlayers_forward.push({ team: 0, ind: n, occur: indexA[n] });
-                        relatedPlayers_backward.push({ team: 0, ind: n, occur: indexA_back[n] });
-                    }
-                }
-                for (var n = 0; n < PlayersH.length; n++) {
-                    if (indexH[n] >= 0) {
-                        relatedPlayers_forward.push({ team: 1, ind: n, occur: indexH[n] });
-                        relatedPlayers_backward.push({ team: 1, ind: n, occur: indexH_back[n] });
-                    }
-                }
-                relatedPlayers_forward.sort((a, b) => a.occur - b.occur);
-                relatedPlayers_backward.sort((a, b) => a.occur - b.occur);
-                //console.log(relatedPlayers);
+                // // 提取球员序号
+                // var relatedPlayersSequence = []
+                // var relatedPlayersSequence = []
+                // for (var n = 0; n < teamA.length; n++) {
+                //     if (indexA[n] >= 0) {
+                //         relatedPlayersSequence.push({ team: 0, ind: n, occur: indexA[n] });
+                //         relatedPlayersSequence.push({ team: 0, ind: n, occur: indexA_back[n] });
+                //     }
+                // }
+                // for (var n = 0; n < teamH.length; n++) {
+                //     if (indexH[n] >= 0) {
+                //         relatedPlayersSequence.push({ team: 1, ind: n, occur: indexH[n] });
+                //         relatedPlayersSequence.push({ team: 1, ind: n, occur: indexH_back[n] });
+                //     }
+                // }
+                // relatedPlayersSequence.sort((a, b) => a.occur - b.occur);
+                // relatedPlayersSequence.sort((a, b) => a.occur - b.occur);
+                // //console.log(relatedPlayers);
+
 
                 var category = '';
                 // 判断投篮事件
@@ -303,40 +372,41 @@
                         slice.includes("直接拔起投三分") ||
                         slice.includes("直接三分出手") ||
                         slice.includes("直接投了") ||
-                        slice.includes("直接投三分")
+                        slice.includes("直接投三分") ||
+                        slice.includes("%半场拿球")
                     ) // 三分投篮
                     {
                         category = category + "3";
                     }
 
                     // 判断传球事件
-                    if (slice.includes("%传给侧翼") ||
-                        slice.includes("%击地传球给到%") ||
+                    if (slice.includes("%击地传球给到%") ||
                         slice.includes("%一记炮弹式传球直塞%") ||
-                        slice.includes("%在弧顶手递手把球给队友") ||
-                        slice.includes("回传给%") ||
+                        //                       slice.includes("%传给侧翼") ||
+                        //                       slice.includes("%在弧顶手递手把球给队友") ||
+                        //                       slice.includes("回传给%") ||
                         slice.includes("双手传球给到要位的%") ||
                         slice.includes("突破分球给%") ||
                         slice.includes("一记潇洒的nolookpass给到跟进的%") ||
-                        slice.includes("队友的传球飞跃篮框") ||
-                        slice.includes("接队友传球") ||
-                        slice.includes("传的好") ||
+                        //                       slice.includes("队友的传球飞跃篮框") ||
+                        //                       slice.includes("接队友传球") ||
+                        //                       slice.includes("传的好") ||
                         slice.includes("%这球传的不错") ||
                         slice.includes("%这球给的太漂亮了") ||
-                        slice.includes("队友回传") ||
-                        slice.includes("队友再回传") ||
+                        //                       slice.includes("队友回传") ||
+                        //                       slice.includes("队友再回传") ||
                         slice.includes("%控球到前场")
-//                         ||
-//                         slice.includes("%在篮下接球") ||
-//                         slice.includes("%在侧翼接球") ||
-//                         slice.includes("%在底线接球") ||
-//                         slice.includes("%在底角接球") ||
-//                         slice.includes("%低位接球") ||
-//                         slice.includes("接球起跳") ||
-//                         slice.includes("%篮下接球") ||
-//                         slice.includes("空中接球") ||
-//                         slice.includes("%起跳接球") ||
-//                         slice.includes("%在三分线外接球")
+                        //                         ||
+                        //                         slice.includes("%在篮下接球") ||
+                        //                         slice.includes("%在侧翼接球") ||
+                        //                         slice.includes("%在底线接球") ||
+                        //                         slice.includes("%在底角接球") ||
+                        //                         slice.includes("%低位接球") ||
+                        //                         slice.includes("接球起跳") ||
+                        //                         slice.includes("%篮下接球") ||
+                        //                         slice.includes("空中接球") ||
+                        //                         slice.includes("%起跳接球") ||
+                        //                         slice.includes("%在三分线外接球")
                     ) // 本条为传球事件
                     {
                         category = category + "1";
@@ -351,19 +421,19 @@
                         slice.includes("%急忙上前补防") ||
                         slice.includes("%完全没有失位啊") ||
                         slice.includes("被%紧紧贴防着") ||
-                        slice.includes("几乎堵死了出手空间") ||
-                        slice.includes("无视防守人直接起跳") ||
-                        slice.includes("在空中躲开防守人") ||
-                        slice.includes("没有出手空间") ||
-                        slice.includes("双人包夹") ||
-                        slice.includes("双人包夹了") ||
-                        slice.includes("%从底线杀入倚住防守人") ||
-                        slice.includes("干拔后仰跳投") ||
-                        slice.includes("干拔三分") ||
-                        slice.includes("自己干拔后仰投篮") ||
-                        slice.includes("好帽") ||
-                        slice.includes("上篮假动作避开两名大个子的防守")
-
+                        slice.includes("%漏人了") ||
+                        //                         slice.includes("几乎堵死了出手空间") ||
+                        //                         slice.includes("无视防守人直接起跳") ||
+                        //                         slice.includes("在空中躲开防守人") ||
+                        //                         slice.includes("没有出手空间") ||
+                        //                         slice.includes("双人包夹") ||
+                        //                         slice.includes("双人包夹了") ||
+                        //                         slice.includes("%从底线杀入倚住防守人") ||
+                        //                         slice.includes("干拔后仰跳投") ||
+                        //                         slice.includes("干拔三分") ||
+                        //                         slice.includes("自己干拔后仰投篮") ||
+                        slice.includes("好帽")
+                        //                        slice.includes("上篮假动作避开两名大个子的防守")
                     ) // 本条为干扰事件
                     {
                         category = category + "1"; // 本条为干扰事件
@@ -394,48 +464,46 @@
                         slice.includes("%完全没有失位啊") ||
                         slice.includes("被%紧紧贴防着")
                     ) {
-                        var contestor = [relatedPlayers_backward[relatedPlayers_backward.length - 1].team,
-                            relatedPlayers_backward[relatedPlayers_backward.length - 1].ind
+                        var contestor = [relatedPlayersSequence[relatedPlayersSequence.length - 1].team,
+                            relatedPlayersSequence[relatedPlayersSequence.length - 1].ind
                         ];
-                        var shooter = [relatedPlayers_backward[relatedPlayers_backward.length - 2].team,
-                            relatedPlayers_backward[relatedPlayers_backward.length - 2].ind
+                        var shooter = [relatedPlayersSequence[relatedPlayersSequence.length - 2].team,
+                            relatedPlayersSequence[relatedPlayersSequence.length - 2].ind
                         ];
-                    } else if (slice.includes("%漏人了") &&
-                        slice.includes("好帽")) {
-                        var contestor = [relatedPlayers_backward[relatedPlayers_backward.length - 2].team,
-                            relatedPlayers_backward[relatedPlayers_backward.length - 2].ind
+                    } else if (slice.includes("%漏人了")) {
+                        var contestor = [relatedPlayersSequence[relatedPlayersSequence.length - 2].team,
+                            relatedPlayersSequence[relatedPlayersSequence.length - 2].ind
                         ];
-                        var shooter = [relatedPlayers_backward[relatedPlayers_backward.length - 1].team,
-                            relatedPlayers_backward[relatedPlayers_backward.length - 1].ind
+                        var shooter = [relatedPlayersSequence[relatedPlayersSequence.length - 1].team,
+                            relatedPlayersSequence[relatedPlayersSequence.length - 1].ind
                         ];
                     } else {
                         var contestor = [];
-                        var shooter = [relatedPlayers_backward[relatedPlayers_backward.length - 1].team,
-                            relatedPlayers_backward[relatedPlayers_backward.length - 1].ind
+                        var shooter = [relatedPlayersSequence[relatedPlayersSequence.length - 1].team,
+                            relatedPlayersSequence[relatedPlayersSequence.length - 1].ind
                         ];
                     }
 
                     // 传球者的位置需要根据具体描述判断
 
                     if (
-                        (slice.includes("%击地传球给到%") && !slice.includes("电梯门战术")) ||
+                        (slice.includes("%击地传球给到%") ||
                         (slice.includes("%控球到前场")) ||
                         slice.includes("突破分球给%") ||
                         slice.includes("一记潇洒的nolookpass给到跟进的%")
                     ) // 传球者为首位
                     {
-                        var passer = [relatedPlayers_forward[0].team,
-                            relatedPlayers_forward[0].ind
+                        var passer = [relatedPlayersSequence[0].team,
+                            relatedPlayersSequence[0].ind
                         ];
                         passerNamed.push(0);
                         shooterPrev.push([]);
                     } else if (
-                        slice.includes("%一记炮弹式传球直塞%") ||
-                        (slice.includes("%击地传球给到%") && slice.includes("电梯门战术"))
+                        slice.includes("%一记炮弹式传球直塞%")
                     ) // 传球者为次位
                     {
-                        var passer = [relatedPlayers_forward[1].team,
-                            relatedPlayers_forward[1].ind
+                        var passer = [relatedPlayersSequence[1].team,
+                            relatedPlayersSequence[1].ind
                         ];
                         passerNamed.push(0);
                         shooterPrev.push([]);
@@ -464,7 +532,7 @@
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISM[0] += 1;
                                 teamH[shooter[1]].ISM[1] += 1;
                                 teamH[shooter[1]].ISM[2] += 1;
@@ -493,7 +561,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[1] += 1;
                                 teamH[shooter[1]].ISA[2] += 1;
@@ -517,7 +585,7 @@
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[1] += 1;
                                 teamH[shooter[1]].ISA[2] += 1;
@@ -541,7 +609,7 @@
                                     teamA[passer[1]].ASTA[0] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISM[0] += 1;
                                 teamH[shooter[1]].ISM[2] += 1;
                                 teamH[shooter[1]].ISA[0] += 1;
@@ -560,7 +628,7 @@
                                 if (passer.length > 0) {
                                     teamA[passer[1]].ASTA[0] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[2] += 1;
                                 if (passer.length > 0) {
@@ -578,7 +646,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[2] += 1;
                                 if (passer.length > 0) {
@@ -600,7 +668,7 @@
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISM[0] += 1;
                                 teamH[shooter[1]].ISM[1] += 1;
                                 teamH[shooter[1]].ISA[0] += 1;
@@ -619,7 +687,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[1] += 1;
                                 if (contestor.length > 0) {
@@ -635,7 +703,7 @@
                                     teamH[contestor[1]].CONTESTA[0] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].ISA[1] += 1;
                                 if (contestor.length > 0) {
@@ -649,7 +717,7 @@
                                 teamA[shooter[1]].ISM[0] += 1;
                                 teamA[shooter[1]].ISA[0] += 1;
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISM[0] += 1;
                                 teamH[shooter[1]].ISA[0] += 1;
                                 teamH[shooter[1]].PTS += 2;
@@ -658,7 +726,7 @@
                         case "11222":
                             if (shooter[0] == 0) {
                                 teamA[shooter[1]].ISA[0] += 1;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                             }
                             break;
@@ -668,7 +736,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].ISA[0] += 1;
                                 if (contestor.length > 0) {
                                     teamA[contestor[1]].BLK += 1;
@@ -692,7 +760,7 @@
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSM[0] += 1;
                                 teamH[shooter[1]].JSM[1] += 1;
                                 teamH[shooter[1]].JSM[2] += 1;
@@ -721,7 +789,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[1] += 1;
                                 teamH[shooter[1]].JSA[2] += 1;
@@ -745,7 +813,7 @@
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[1] += 1;
                                 teamH[shooter[1]].JSA[2] += 1;
@@ -769,7 +837,7 @@
                                     teamA[passer[1]].ASTA[1] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSM[0] += 1;
                                 teamH[shooter[1]].JSM[2] += 1;
                                 teamH[shooter[1]].JSA[0] += 1;
@@ -788,7 +856,7 @@
                                 if (passer.length > 0) {
                                     teamA[passer[1]].ASTA[1] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[2] += 1;
                                 if (passer.length > 0) {
@@ -806,7 +874,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[2] += 1;
                                 if (passer.length > 0) {
@@ -828,7 +896,7 @@
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSM[0] += 1;
                                 teamH[shooter[1]].JSM[1] += 1;
                                 teamH[shooter[1]].JSA[0] += 1;
@@ -847,7 +915,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[1] += 1;
                                 if (contestor.length > 0) {
@@ -863,7 +931,7 @@
                                     teamH[contestor[1]].CONTESTA[1] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].JSA[1] += 1;
                                 if (contestor.length > 0) {
@@ -877,7 +945,7 @@
                                 teamA[shooter[1]].JSM[0] += 1;
                                 teamA[shooter[1]].JSA[0] += 1;
                                 teamA[shooter[1]].PTS += 2;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSM[0] += 1;
                                 teamH[shooter[1]].JSA[0] += 1;
                                 teamH[shooter[1]].PTS += 2;
@@ -886,7 +954,7 @@
                         case "12222":
                             if (shooter[0] == 0) {
                                 teamA[shooter[1]].JSA[0] += 1;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                             }
                             break;
@@ -896,7 +964,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].JSA[0] += 1;
                                 if (contestor.length > 0) {
                                     teamA[contestor[1]].BLK += 1;
@@ -920,7 +988,7 @@
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 3;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3M[0] += 1;
                                 teamH[shooter[1]].P3M[1] += 1;
                                 teamH[shooter[1]].P3M[2] += 1;
@@ -949,7 +1017,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[1] += 1;
                                 teamH[shooter[1]].P3A[2] += 1;
@@ -973,7 +1041,7 @@
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[1] += 1;
                                 teamH[shooter[1]].P3A[2] += 1;
@@ -997,7 +1065,7 @@
                                     teamA[passer[1]].ASTA[2] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 3;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3M[0] += 1;
                                 teamH[shooter[1]].P3M[2] += 1;
                                 teamH[shooter[1]].P3A[0] += 1;
@@ -1016,7 +1084,7 @@
                                 if (passer.length > 0) {
                                     teamA[passer[1]].ASTA[2] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[2] += 1;
                                 if (passer.length > 0) {
@@ -1034,7 +1102,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[2] += 1;
                                 if (passer.length > 0) {
@@ -1056,7 +1124,7 @@
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                 }
                                 teamA[shooter[1]].PTS += 3;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3M[0] += 1;
                                 teamH[shooter[1]].P3M[1] += 1;
                                 teamH[shooter[1]].P3A[0] += 1;
@@ -1075,7 +1143,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[1] += 1;
                                 if (contestor.length > 0) {
@@ -1091,7 +1159,7 @@
                                     teamH[contestor[1]].CONTESTA[2] += 1;
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].P3A[1] += 1;
                                 if (contestor.length > 0) {
@@ -1105,7 +1173,7 @@
                                 teamA[shooter[1]].P3M[0] += 1;
                                 teamA[shooter[1]].P3A[0] += 1;
                                 teamA[shooter[1]].PTS += 3;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3M[0] += 1;
                                 teamH[shooter[1]].P3A[0] += 1;
                                 teamH[shooter[1]].PTS += 3;
@@ -1114,7 +1182,7 @@
                         case "13222":
                             if (shooter[0] == 0) {
                                 teamA[shooter[1]].P3A[0] += 1;
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                             }
                             break;
@@ -1124,7 +1192,7 @@
                                 if (contestor.length > 0) {
                                     teamH[contestor[1]].BLK += 1;
                                 }
-                            } else {
+                            } else if (shooter[0] == 1) {
                                 teamH[shooter[1]].P3A[0] += 1;
                                 if (contestor.length > 0) {
                                     teamA[contestor[1]].BLK += 1;
@@ -1137,23 +1205,23 @@
                     if (category[0] == "1" && category[4] == "1") {
                         if (category[1] == "1" || category[1] == "2") {
                             for (var i = 0; i < teamA.length - 1; i++) {
-                                if (teamA[i].OnCourt == 1) {
+                                if (teamA[i].OnCourt >= 1) {
                                     teamA[i].PlusMinus += 2 * ((-2) * shooter[0] + 1);
                                 }
                             }
                             for (var i = 0; i < teamH.length - 1; i++) {
-                                if (teamH[i].OnCourt == 1) {
+                                if (teamH[i].OnCourt >= 1) {
                                     teamH[i].PlusMinus += 2 * (2 * shooter[0] - 1);
                                 }
                             }
                         } else if (category[1] == "3") {
                             for (var i = 0; i < teamA.length - 1; i++) {
-                                if (teamA[i].OnCourt == 1) {
+                                if (teamA[i].OnCourt >= 1) {
                                     teamA[i].PlusMinus += 3 * ((-2) * shooter[0] + 1);
                                 }
                             }
                             for (var i = 0; i < teamH.length - 1; i++) {
-                                if (teamH[i].OnCourt == 1) {
+                                if (teamH[i].OnCourt >= 1) {
                                     teamH[i].PlusMinus += 3 * (2 * shooter[0] - 1);
                                 }
                             }
@@ -1165,8 +1233,8 @@
                 if (slice.includes("%这球传的不错") ||
                     slice.includes("%这球给的太漂亮了") ||
                     passerNamed[length.passerNamed - 1] > 0) {
-                    var passer = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var passer = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
                     let shootType = passerNamed[passerNamed.length - 1];
                     if (passer[0] == 0) {
@@ -1184,7 +1252,7 @@
                         }
 
 
-                    } else {
+                    } else if (passer[0] == 1) {
                         teamH[passer[1]].ASTM[shootType - 1] += 1;
                         teamH[passer[1]].ASTA[shootType - 1] += 1;
                         if (shootType == 1) {
@@ -1212,13 +1280,13 @@
                     slice.includes("拼抢下进攻篮板") ||
                     slice.includes("抢到进攻篮板!")
                 ) {
-                    var rebounder = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var rebounder = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (rebounder[0] == 0) {
                         teamA[rebounder[1]].OREB += 1;
-                    } else {
+                    } else if (rebounder[0] == 1) {
                         teamH[rebounder[1]].OREB += 1;
                     }
 
@@ -1232,13 +1300,13 @@
                     slice.includes("%轻松拿到这个防守篮板") ||
                     slice.includes("%摘下防守篮板")
                 ) {
-                    var rebounder = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var rebounder = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (rebounder[0] == 0) {
                         teamA[rebounder[1]].DREB += 1;
-                    } else {
+                    } else if (rebounder[0] == 1) {
                         teamH[rebounder[1]].DREB += 1;
                     }
 
@@ -1249,13 +1317,13 @@
                     slice.includes("诶？什么情况？裁判吹了%一次犯规") ||
                     slice.includes("给的是%的投篮犯规")
                 ) {
-                    var fouler = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var fouler = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (fouler[0] == 0) {
                         teamA[fouler[1]].FOUL += 1;
-                    } else {
+                    } else if (fouler[0] == 1) {
                         teamH[fouler[1]].FOUL += 1;
                     }
 
@@ -1264,14 +1332,14 @@
                 else if (
                     slice.includes("裁判怎么说？进攻犯规")
                 ) {
-                    var fouler = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var fouler = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (fouler[0] == 0) {
                         teamA[fouler[1]].FOUL += 1;
                         teamA[fouler[1]].TO += 1;
-                    } else {
+                    } else if (fouler[0] == 1) {
                         teamH[fouler[1]].FOUL += 1;
                         teamH[fouler[1]].TO += 1;
                     }
@@ -1288,8 +1356,8 @@
                     slice.includes("还是进了")
                 ) {
                     //console.log(teamA[0].OnCourt)
-                    var fter = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var fter = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (fter[0] == 0) {
@@ -1298,29 +1366,29 @@
                         teamA[fter[1]].PTS += 1;
 
                         for (var i = 0; i < teamA.length - 1; i++) {
-                            if (teamA[i].OnCourt == 1) {
+                            if (teamA[i].OnCourt >= 1) {
                                 teamA[i].PlusMinus += 1;
 
                             }
                         }
                         for (var i = 0; i < teamH.length - 1; i++) {
-                            if (teamH[i].OnCourt == 1) {
+                            if (teamH[i].OnCourt >= 1) {
                                 teamH[i].PlusMinus -= 1;
                             }
                         }
 
-                    } else {
+                    } else if (fter[0] == 1) {
                         teamH[fter[1]].FTM += 1;
                         teamH[fter[1]].FTA += 1;
                         teamH[fter[1]].PTS += 1;
 
                         for (var i = 0; i < teamA.length - 1; i++) {
-                            if (teamA[i].OnCourt == 1) {
+                            if (teamA[i].OnCourt >= 1) {
                                 teamA[i].PlusMinus -= 1;
                             }
                         }
                         for (var i = 0; i < teamH.length - 1; i++) {
-                            if (teamH[i].OnCourt == 1) {
+                            if (teamH[i].OnCourt >= 1) {
                                 teamH[i].PlusMinus += 1;
                             }
                         }
@@ -1332,13 +1400,13 @@
                 else if (
                     slice.includes("弹框而出") || (slice.includes("%罚球") && slice.includes("没进"))
                 ) {
-                    var fter = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var fter = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (fter[0] == 0) {
                         teamA[fter[1]].FTA += 1;
-                    } else {
+                    } else if (fter[0] == 1) {
                         teamH[fter[1]].FTA += 1;
                     }
 
@@ -1353,17 +1421,17 @@
                     slice.includes("被%断了") ||
                     slice.includes("%把球断了")
                 ) {
-                    var toer = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var toer = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
-                    var stealer = [relatedPlayers_forward[1].team,
-                        relatedPlayers_forward[1].ind
+                    var stealer = [relatedPlayersSequence[1].team,
+                        relatedPlayersSequence[1].ind
                     ];
 
                     if (toer[0] == 0) {
                         teamA[toer[1]].TO += 1;
                         teamH[stealer[1]].STL += 1;
-                    } else {
+                    } else if (toer[0] == 1) {
                         teamH[toer[1]].TO += 1;
                         teamA[stealer[1]].STL += 1;
                     }
@@ -1382,13 +1450,13 @@
                     slice.includes("%传给弧顶") ||
                     slice.includes("%传球给底线")
                 ) {
-                    var toer = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var toer = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (toer[0] == 0) {
                         teamA[toer[1]].TO += 1;
-                    } else {
+                    } else if (toer[0] == 1) {
                         teamH[toer[1]].TO += 1;
                     }
                 }
@@ -1397,13 +1465,13 @@
                 else if (
                     slice.includes("%24秒进攻违例")
                 ) {
-                    var toer = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var toer = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (toer[0] == 0) {
                         teamA[toer[1]].TO += 1;
-                    } else {
+                    } else if (toer[0] == 1) {
                         teamH[toer[1]].TO += 1;
                     }
                 }
@@ -1414,19 +1482,19 @@
                     slice.includes("%被%换下场") ||
                     slice.includes("和%耳语着什么")
                 ) {
-                    var subout = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var subout = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
-                    var subin = [relatedPlayers_forward[1].team,
-                        relatedPlayers_forward[1].ind
+                    var subin = [relatedPlayersSequence[1].team,
+                        relatedPlayersSequence[1].ind
                     ];
 
                     if (subout[0] == 0) {
+                        teamA[subin[1]].OnCourt = teamA[subout[1]].OnCourt;
                         teamA[subout[1]].OnCourt = 0;
-                        teamA[subin[1]].OnCourt = 1;
-                    } else {
+                    } else if (subout[0] == 1) {
+                        teamH[subin[1]].OnCourt = teamH[subout[1]].OnCourt;
                         teamH[subout[1]].OnCourt = 0;
-                        teamH[subin[1]].OnCourt = 1;
                     }
                 }
 
@@ -1441,29 +1509,50 @@
                     slice.includes("指了指%") ||
                     slice.includes("给%使了个眼色")
                 ) {
-                    var subout = [relatedPlayers_forward[1].team,
-                        relatedPlayers_forward[1].ind
+                    var subout = [relatedPlayersSequence[1].team,
+                        relatedPlayersSequence[1].ind
                     ];
-                    var subin = [relatedPlayers_forward[0].team,
-                        relatedPlayers_forward[0].ind
+                    var subin = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
                     ];
 
                     if (subout[0] == 0) {
+                        teamA[subin[1]].OnCourt = teamA[subout[1]].OnCourt;
                         teamA[subout[1]].OnCourt = 0;
-                        teamA[subin[1]].OnCourt = 1;
-                    } else {
+                    } else if (subout[0] == 1) {
+                        teamH[subin[1]].OnCourt = teamH[subout[1]].OnCourt;
                         teamH[subout[1]].OnCourt = 0;
-                        teamH[subin[1]].OnCourt = 1;
+                    }
+                }
+
+                // 7-3 互换位置
+                else if (
+                    slice.includes("%与%拍手之后") ||
+                    slice.includes("%给%递了个眼神")
+                ) {
+                    var subout = [relatedPlayersSequence[1].team,
+                        relatedPlayersSequence[1].ind
+                    ];
+                    var subin = [relatedPlayersSequence[0].team,
+                        relatedPlayersSequence[0].ind
+                    ];
+
+                    if (subout[0] == 0) {
+                        let swap = teamA[subin[1]].OnCourt;
+                        teamA[subin[1]].OnCourt = teamA[subout[1]].OnCourt;
+                        teamA[subout[1]].OnCourt = swap;
+                    } else if (subout[0] == 1) {
+                        let swap = teamH[subin[1]].OnCourt;
+                        teamH[subin[1]].OnCourt = teamH[subout[1]].OnCourt;
+                        teamH[subout[1]].OnCourt = swap;
                     }
                 }
         }
     }
 
 
-
-
     // rank by PTS and team stat
-    var teamAP = teamA.slice(0, teamA.length - 1).sort((a, b) => ((b.PTS - a.PTS) || (+(b.PTS == a.PTS) && (b.MINUTE - a.MINUTE))));
+    var teamAP = teamA.slice(0, teamA.length - 1).sort((a, b) => ((b.PTS - a.PTS) || (+(b.PTS == a.PTS) && (b.MINUTE[0] - a.MINUTE[0]))));
     teamAP.push(teamA[teamA.length - 1]);
     teamA = teamAP;
 
@@ -1488,12 +1577,11 @@
         teamA[teamA.length - 1].BLK += teamA[i].BLK;
         teamA[teamA.length - 1].FOUL += teamA[i].FOUL;
         teamA[teamA.length - 1].PTS += teamA[i].PTS;
-        teamA[teamA.length - 1].MINUTE += teamA[i].MINUTE;
+        teamA[teamA.length - 1].MINUTE[0] += teamA[i].MINUTE[0];
     }
     teamA[teamA.length - 1].PlusMinus = '';
-    teamA[teamA.length - 1].MINUTE /= 5;
+    teamA[teamA.length - 1].MINUTE[0] /= 5;
 
-    GM_log(teamA)
     // Team A - Basics
 
     const boxToAdd = pbp.getElementsByClassName("boxcontent")[0];
@@ -1502,6 +1590,7 @@
     boxToAdd.insertBefore(tableA1, boxRef);
 
     let table = document.createElement('table');
+    table.style = 'width: 99%'
     let thead = document.createElement('thead');
     thead.className = 'tableheader';
     let tbody = document.createElement('tbody');
@@ -1549,8 +1638,8 @@
         } else {
             r2.style = 'background:#FFFFFF';
         }
-        var bodytext = [teamA[i].name,
-            teamA[i].MINUTE.toFixed(0),
+        var bodytext = [getPosition(teamA[i].MINUTE, teamA[i]),
+            teamA[i].MINUTE[0].toFixed(0),
             `${teamA[i].ISM[0]+teamA[i].JSM[0]+teamA[i].P3M[0]} - ${teamA[i].ISA[0]+teamA[i].JSA[0]+teamA[i].P3A[0]}`,
             `${teamA[i].ISM[0]} - ${teamA[i].ISA[0]}`,
             `${teamA[i].JSM[0]} - ${teamA[i].JSA[0]}`,
@@ -1605,6 +1694,7 @@
     boxToAdd.insertBefore(tableA2, boxRef);
 
     table = document.createElement('table');
+    table.style = 'width: 99%'
     thead = document.createElement('thead');
     tbody = document.createElement('tbody');
     table.appendChild(thead);
@@ -1647,7 +1737,7 @@
             r2.style = 'background:#FFFFFF';
         }
         bodytext = [
-            teamA[i].name,
+            getPosition(teamA[i].MINUTE, teamA[i]),
             (teamA[i].PTS / (teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0] + teamA[i].FTA * 0.44) / 2).toFixed(3),
             ((teamA[i].ISM[0] + teamA[i].JSM[0] + teamA[i].P3M[0]) / (teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0])).toFixed(3),
             `${teamA[i].ISM[1]+teamA[i].JSM[1]+teamA[i].P3M[1]} - ${teamA[i].ISA[1]+teamA[i].JSA[1]+teamA[i].P3A[1]}`,
@@ -1681,6 +1771,7 @@
     boxToAdd.insertBefore(tableA3, boxRef);
 
     table = document.createElement('table');
+    table.style = 'width: 99%'
     thead = document.createElement('thead');
     tbody = document.createElement('tbody');
     table.appendChild(thead);
@@ -1726,17 +1817,17 @@
             r2.style = 'background:#FFFFFF';
         }
         bodytext = [
-            teamA[i].name,
+            getPosition(teamA[i].MINUTE, teamA[i]),
             `${teamA[i].CONTESTM[0]} - ${teamA[i].CONTESTA[0]}`,
             `${teamA[i].CONTESTM[1]} - ${teamA[i].CONTESTA[1]}`,
             `${teamA[i].CONTESTM[2]} - ${teamA[i].CONTESTA[2]}`,
             `${teamA[i].CONTESTM[0]+teamA[i].CONTESTM[1]+teamA[i].CONTESTM[2]} - ${teamA[i].CONTESTA[0]+teamA[i].CONTESTA[1]+teamA[i].CONTESTA[2]}`,
             ((teamA[i].CONTESTM[0] + teamA[i].CONTESTM[1] + teamA[i].CONTESTM[2]) / (teamA[i].CONTESTA[0] + teamA[i].CONTESTA[1] + teamA[i].CONTESTA[2])).toFixed(3),
-            ((teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0] + 0.44 * teamA[i].FTA + teamA[i].TO) * teamA[teamA.length - 1].MINUTE / (teamA[i].MINUTE * (teamA[teamA.length - 1].ISA[0] + teamA[teamA.length - 1].JSA[0] + teamA[teamA.length - 1].P3A[0] + 0.44 * teamA[teamA.length - 1].FTA + teamA[teamA.length - 1].TO))).toFixed(3),
-            ((teamA[i].ASTM[0] + teamA[i].ASTM[1] + teamA[i].ASTM[2]) / (teamA[i].MINUTE / teamA[teamA.length - 1].MINUTE * (teamA[teamA.length - 1].ISM[0] + teamA[teamA.length - 1].JSM[0] + teamA[teamA.length - 1].P3M[0]) - (teamA[i].ISM[0] + teamA[i].JSM[0] + teamA[i].P3M[0]))).toFixed(3),
-            ((teamA[i].OREB + teamA[i].DREB) * teamA[teamA.length - 1].MINUTE / (teamA[i].MINUTE * (teamA[teamA.length - 1].OREB + teamA[teamA.length - 1].DREB + teamH[teamH.length - 1].OREB + teamH[teamH.length - 1].DREB))).toFixed(3),
-            ((teamA[i].OREB) * teamA[teamA.length - 1].MINUTE / (teamA[i].MINUTE * (teamA[teamA.length - 1].OREB + teamH[teamH.length - 1].DREB))).toFixed(3),
-            ((teamA[i].DREB) * teamA[teamA.length - 1].MINUTE / (teamA[i].MINUTE * (teamA[teamA.length - 1].DREB + teamH[teamH.length - 1].OREB))).toFixed(3),
+            ((teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0] + 0.44 * teamA[i].FTA + teamA[i].TO) * teamA[teamA.length - 1].MINUTE[0] / (teamA[i].MINUTE[0] * (teamA[teamA.length - 1].ISA[0] + teamA[teamA.length - 1].JSA[0] + teamA[teamA.length - 1].P3A[0] + 0.44 * teamA[teamA.length - 1].FTA + teamA[teamA.length - 1].TO))).toFixed(3),
+            ((teamA[i].ASTM[0] + teamA[i].ASTM[1] + teamA[i].ASTM[2]) / (teamA[i].MINUTE[0] / teamA[teamA.length - 1].MINUTE[0] * (teamA[teamA.length - 1].ISM[0] + teamA[teamA.length - 1].JSM[0] + teamA[teamA.length - 1].P3M[0]) - (teamA[i].ISM[0] + teamA[i].JSM[0] + teamA[i].P3M[0]))).toFixed(3),
+            ((teamA[i].OREB + teamA[i].DREB) * teamA[teamA.length - 1].MINUTE[0] / (teamA[i].MINUTE[0] * (teamA[teamA.length - 1].OREB + teamA[teamA.length - 1].DREB + teamH[teamH.length - 1].OREB + teamH[teamH.length - 1].DREB))).toFixed(3),
+            ((teamA[i].OREB) * teamA[teamA.length - 1].MINUTE[0] / (teamA[i].MINUTE[0] * (teamA[teamA.length - 1].OREB + teamH[teamH.length - 1].DREB))).toFixed(3),
+            ((teamA[i].DREB) * teamA[teamA.length - 1].MINUTE[0] / (teamA[i].MINUTE[0] * (teamA[teamA.length - 1].DREB + teamH[teamH.length - 1].OREB))).toFixed(3),
             (teamA[i].TO / (teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0] + 0.44 * teamA[i].FTA + teamA[i].TO)).toFixed(3)
         ];
         //bodytext.replace('NaN','-');
@@ -1772,10 +1863,10 @@
     for (let j = 0; j < headText.length; j++) {
         let dat = document.createElement('th');
         if (j > 0) {
-                dat.style = 'text-align:center';
-            } else {
-                dat.style = 'text-align:left';
-            }
+            dat.style = 'text-align:center';
+        } else {
+            dat.style = 'text-align:left';
+        }
         if (bodytext[j] == 'NaN') {
             bodytext[j] = '-';
         }
@@ -1787,7 +1878,7 @@
 
 
     // rank by PTS and team stat
-    var teamHP = teamH.slice(0, teamH.length - 1).sort((a, b) => ((b.PTS - a.PTS) || (+(b.PTS == a.PTS) && (b.MINUTE - a.MINUTE))));
+    var teamHP = teamH.slice(0, teamH.length - 1).sort((a, b) => ((b.PTS - a.PTS) || (+(b.PTS == a.PTS) && (b.MINUTE[0] - a.MINUTE[0]))));
     teamHP.push(teamH[teamH.length - 1]);
     teamH = teamHP;
 
@@ -1811,10 +1902,10 @@
         teamH[teamH.length - 1].BLK += teamH[i].BLK;
         teamH[teamH.length - 1].FOUL += teamH[i].FOUL;
         teamH[teamH.length - 1].PTS += teamH[i].PTS;
-        teamH[teamH.length - 1].MINUTE += teamH[i].MINUTE;
+        teamH[teamH.length - 1].MINUTE[0] += teamH[i].MINUTE[0];
     }
     teamH[teamH.length - 1].PlusMinus = '';
-    teamH[teamH.length - 1].MINUTE /= 5;
+    teamH[teamH.length - 1].MINUTE[0] /= 5;
 
 
     // Team H - Basics
@@ -1823,6 +1914,7 @@
     boxToAdd.insertBefore(tableH1, boxRef);
 
     table = document.createElement('table');
+    table.style = 'width: 99%'
     thead = document.createElement('thead');
     thead.className = 'tableheader';
     tbody = document.createElement('tbody');
@@ -1870,8 +1962,8 @@
         } else {
             r2.style = 'background:#FFFFFF';
         }
-        bodytext = [teamH[i].name,
-            teamH[i].MINUTE.toFixed(0),
+        bodytext = [getPosition(teamH[i].MINUTE, teamH[i]),
+            teamH[i].MINUTE[0].toFixed(0),
             `${teamH[i].ISM[0]+teamH[i].JSM[0]+teamH[i].P3M[0]} - ${teamH[i].ISA[0]+teamH[i].JSA[0]+teamH[i].P3A[0]}`,
             `${teamH[i].ISM[0]} - ${teamH[i].ISA[0]}`,
             `${teamH[i].JSM[0]} - ${teamH[i].JSA[0]}`,
@@ -1925,6 +2017,7 @@
     boxToAdd.insertBefore(tableH2, boxRef);
 
     table = document.createElement('table');
+    table.style = 'width: 99%'
     thead = document.createElement('thead');
     tbody = document.createElement('tbody');
     table.appendChild(thead);
@@ -1967,7 +2060,7 @@
             r2.style = 'background:#FFFFFF';
         }
         bodytext = [
-            teamH[i].name,
+            getPosition(teamH[i].MINUTE, teamH[i]),
             (teamH[i].PTS / (teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0] + teamH[i].FTA * 0.44) / 2).toFixed(3),
             ((teamH[i].ISM[0] + teamH[i].JSM[0] + teamH[i].P3M[0]) / (teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0])).toFixed(3),
             `${teamH[i].ISM[1]+teamH[i].JSM[1]+teamH[i].P3M[1]} - ${teamH[i].ISA[1]+teamH[i].JSA[1]+teamH[i].P3A[1]}`,
@@ -2000,6 +2093,7 @@
     boxToAdd.insertBefore(tableH3, boxRef);
 
     table = document.createElement('table');
+    table.style = 'width: 99%'
     thead = document.createElement('thead');
     tbody = document.createElement('tbody');
     table.appendChild(thead);
@@ -2044,17 +2138,17 @@
             r2.style = 'background:#FFFFFF';
         }
         bodytext = [
-            teamH[i].name,
+            getPosition(teamH[i].MINUTE, teamH[i]),
             `${teamH[i].CONTESTM[0]} - ${teamH[i].CONTESTA[0]}`,
             `${teamH[i].CONTESTM[1]} - ${teamH[i].CONTESTA[1]}`,
             `${teamH[i].CONTESTM[2]} - ${teamH[i].CONTESTA[2]}`,
             `${teamH[i].CONTESTM[0]+teamH[i].CONTESTM[1]+teamH[i].CONTESTM[2]} - ${teamH[i].CONTESTA[0]+teamH[i].CONTESTA[1]+teamH[i].CONTESTA[2]}`,
             ((teamH[i].CONTESTM[0] + teamH[i].CONTESTM[1] + teamH[i].CONTESTM[2]) / (teamH[i].CONTESTA[0] + teamH[i].CONTESTA[1] + teamH[i].CONTESTA[2])).toFixed(3),
-            ((teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0] + 0.44 * teamH[i].FTA + teamH[i].TO) * teamH[teamH.length - 1].MINUTE / (teamH[i].MINUTE * (teamH[teamH.length - 1].ISA[0] + teamH[teamH.length - 1].JSA[0] + teamH[teamH.length - 1].P3A[0] + 0.44 * teamH[teamH.length - 1].FTA + teamH[teamH.length - 1].TO))).toFixed(3),
-            ((teamH[i].ASTM[0] + teamH[i].ASTM[1] + teamH[i].ASTM[2]) / (teamH[i].MINUTE / teamH[teamH.length - 1].MINUTE * (teamH[teamH.length - 1].ISM[0] + teamH[teamH.length - 1].JSM[0] + teamH[teamH.length - 1].P3M[0]) - (teamH[i].ISM[0] + teamH[i].JSM[0] + teamH[i].P3M[0]))).toFixed(3),
-            ((teamH[i].OREB + teamH[i].DREB) * teamH[teamH.length - 1].MINUTE / (teamH[i].MINUTE * (teamH[teamH.length - 1].OREB + teamH[teamH.length - 1].DREB + teamA[teamA.length - 1].OREB + teamA[teamA.length - 1].DREB))).toFixed(3),
-            ((teamH[i].OREB) * teamH[teamH.length - 1].MINUTE / (teamH[i].MINUTE * (teamH[teamH.length - 1].OREB + teamA[teamA.length - 1].DREB))).toFixed(3),
-            ((teamH[i].DREB) * teamH[teamH.length - 1].MINUTE / (teamH[i].MINUTE * (teamH[teamH.length - 1].DREB + teamA[teamA.length - 1].OREB))).toFixed(3),
+            ((teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0] + 0.44 * teamH[i].FTA + teamH[i].TO) * teamH[teamH.length - 1].MINUTE[0] / (teamH[i].MINUTE[0] * (teamH[teamH.length - 1].ISA[0] + teamH[teamH.length - 1].JSA[0] + teamH[teamH.length - 1].P3A[0] + 0.44 * teamH[teamH.length - 1].FTA + teamH[teamH.length - 1].TO))).toFixed(3),
+            ((teamH[i].ASTM[0] + teamH[i].ASTM[1] + teamH[i].ASTM[2]) / (teamH[i].MINUTE[0] / teamH[teamH.length - 1].MINUTE[0] * (teamH[teamH.length - 1].ISM[0] + teamH[teamH.length - 1].JSM[0] + teamH[teamH.length - 1].P3M[0]) - (teamH[i].ISM[0] + teamH[i].JSM[0] + teamH[i].P3M[0]))).toFixed(3),
+            ((teamH[i].OREB + teamH[i].DREB) * teamH[teamH.length - 1].MINUTE[0] / (teamH[i].MINUTE[0] * (teamH[teamH.length - 1].OREB + teamH[teamH.length - 1].DREB + teamA[teamA.length - 1].OREB + teamA[teamA.length - 1].DREB))).toFixed(3),
+            ((teamH[i].OREB) * teamH[teamH.length - 1].MINUTE[0] / (teamH[i].MINUTE[0] * (teamH[teamH.length - 1].OREB + teamA[teamA.length - 1].DREB))).toFixed(3),
+            ((teamH[i].DREB) * teamH[teamH.length - 1].MINUTE[0] / (teamH[i].MINUTE[0] * (teamH[teamH.length - 1].DREB + teamA[teamA.length - 1].OREB))).toFixed(3),
             (teamH[i].TO / (teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0] + 0.44 * teamH[i].FTA + teamH[i].TO)).toFixed(3)
         ];
         //bodytext.replace('NaN','-');
@@ -2090,10 +2184,10 @@
     for (let j = 0; j < headText.length; j++) {
         let dat = document.createElement('td');
         if (j > 0) {
-                dat.style = 'text-align:center';
-            } else {
-                dat.style = 'text-align:left';
-            }
+            dat.style = 'text-align:center';
+        } else {
+            dat.style = 'text-align:left';
+        }
         if (bodytext[j] == 'NaN') {
             bodytext[j] = '-';
         }
