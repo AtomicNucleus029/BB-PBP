@@ -14,6 +14,10 @@
 
 ### 安装
 
-和Buzzer Manager的脚本类似，添加BuzzerBeater_PBP_Analyzer.js至浏览器的TamperMonkey中即可。
+和Buzzer Manager的脚本类似，添加BuzzerBeater_PBP_Analyzer.js至浏览器的TamperMonkey中即可（IE暂不支持）。
 
 也可以通过[https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer](https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer)进行添加。
+
+### 关于接球攻
+
+BuzzerBeater的中文化团队文采斐然，为文字直播增添了许多乐趣。相比之下，英文版的解说词就显得平淡许多。但是，中文版增添的细节有时和英文版存在一些出入。比如“A在三分线外接球，直接三分出手”这一句，
