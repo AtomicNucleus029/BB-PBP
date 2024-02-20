@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BuzzerBeater PBP Analyzer
 // @namespace    https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer
-// @version      0.0.3
+// @version      0.0.4
 // @description  Analyze Buzzerbeater play-by-play for more information.
 // @author       AtomicNucleus
 // @match        https://www.buzzerbeater.com/match/*/pbp.aspx
