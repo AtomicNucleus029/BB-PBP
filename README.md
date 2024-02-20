@@ -12,4 +12,8 @@
 
 <img src="https://github.com/AtomicNucleus029/BB-PBP/assets/160561545/1eb98c2b-ffd9-4c65-ab46-d1a524354dc5" width = 500>
 
-### 功能
+### 安装
+
+和Buzzer Manager的脚本类似，添加BuzzerBeater_PBP_Analyzer.js至浏览器的TamperMonkey中即可。
+
+也可以通过[https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer](https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer)进行添加。
