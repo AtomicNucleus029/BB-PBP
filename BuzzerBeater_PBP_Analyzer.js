@@ -487,7 +487,7 @@
                     // 传球者的位置需要根据具体描述判断
 
                     if (
-                        (slice.includes("%击地传球给到%") ||
+                        slice.includes("%击地传球给到%") ||
                         (slice.includes("%控球到前场")) ||
                         slice.includes("突破分球给%") ||
                         slice.includes("一记潇洒的nolookpass给到跟进的%")
@@ -499,7 +499,7 @@
                         passerNamed.push(0);
                         shooterPrev.push([]);
                     } else if (
-                        slice.includes("%一记炮弹式传球直塞%")
+                        slice.includes("%一记炮弹式传球直塞%") 
                     ) // 传球者为次位
                     {
                         var passer = [relatedPlayersSequence[1].team,
