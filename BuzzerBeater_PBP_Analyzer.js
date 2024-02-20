@@ -51,7 +51,7 @@
         }
 
         if (playerStat.IsStarter == 1) {
-            return a + '<a>' + playerStat.name.split(' (')[0].link(playerStat.href) + '</b>';
+            return a + '<b>' + playerStat.name.split(' (')[0].link(playerStat.href) + '</b>';
         } else if (M[i] == 0 && MINUTE[0] > 0) {
             return a + playerStat.name.split(' (')[0];
         } else {
