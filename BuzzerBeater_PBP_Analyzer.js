@@ -1497,6 +1497,7 @@
                 else if (
                     slice.includes("%被%换下") ||
                     slice.includes("%被%换下场") ||
+                    slice.indluces("%你打的像坨屎") ||
                     slice.includes("和%耳语着什么")
                 ) {
                     var subout = [relatedPlayersSequence[0].team,
