@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BuzzerBeater PBP Analyzer
 // @namespace    http://tampermonkey.net/
-// @version      0.0.2
+// @version      0.0.3
 // @description  Analyze Buzzerbeater play-by-play for more information.
 // @author       AtomicNucleus
 // @match        https://www.buzzerbeater.com/match/*/pbp.aspx
@@ -9,6 +9,8 @@
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
 // @grant        GM_log
 // @grant        GM_addElement
+// @downloadURL https://update.greasyfork.org/scripts/487785/BuzzerBeater%20PBP%20Analyzer.user.js
+// @updateURL https://update.greasyfork.org/scripts/487785/BuzzerBeater%20PBP%20Analyzer.meta.js
 // ==/UserScript==
 
 (function() {
@@ -49,13 +51,14 @@
         }
 
         if (playerStat.IsStarter == 1) {
-            return a + '<b>' + playerStat.name.split(' (')[0] + '</b>';
-        } else {
+            return a + '<a>' + playerStat.name.split(' (')[0].link(playerStat.href) + '</b>';
+        } else if (M[i] == 0 && MINUTE[0] > 0) {
             return a + playerStat.name.split(' (')[0];
+        } else {
+            return a + playerStat.name.split(' (')[0].link(playerStat.href);
         }
 
     }
-
 
     // Get Names
     const pbp = document.getElementById("cbPbp");
@@ -90,6 +93,7 @@
     for (let p = 0; p < PlayersA.length; p++) {
         teamA.push({
             name: PlayersA[p],
+            href: '',
             OnCourt: 0,
             IsStarter: 0,
             MINUTE: Array(6).fill(0), // 0-total, 1-PG, 2-SG, 3-SF, 4-PF, 5-C
@@ -119,6 +123,7 @@
     for (let p = 0; p < PlayersH.length; p++) {
         teamH.push({
             name: PlayersH[p],
+            href: '',
             OnCourt: 0,
             IsStarter: 0,
             MINUTE: Array(6).fill(0), // 0-total, 1-PG, 2-SG, 3-SF, 4-PF, 5-C
@@ -143,6 +148,18 @@
             FOUL: 0,
             PTS: 0
         })
+    }
+
+    // adding href
+    for (let i = 0; i < 12; i++) {
+        if ((names[i].innerHTML.length > 0) || (i < 5)) {
+            teamA[i].href = names[i].getAttribute('href');
+        }
+    }
+    for (let i = 12; i < 24; i++) {
+        if ((names[i].innerHTML.length > 0) || (i < 17)) {
+            teamH[i - 12].href = names[i].getAttribute('href');
+        }
     }
 
     for (var k = 0; k < 5; k++) {
@@ -499,7 +516,7 @@
                         passerNamed.push(0);
                         shooterPrev.push([]);
                     } else if (
-                        slice.includes("%一记炮弹式传球直塞%") 
+                        slice.includes("%一记炮弹式传球直塞%")
                     ) // 传球者为次位
                     {
                         var passer = [relatedPlayersSequence[1].team,
@@ -1582,6 +1599,9 @@
     teamA[teamA.length - 1].PlusMinus = '';
     teamA[teamA.length - 1].MINUTE[0] /= 5;
 
+
+    GM_log(teamA)
+    GM_log(teamH)
     // Team A - Basics
 
     const boxToAdd = pbp.getElementsByClassName("boxcontent")[0];
