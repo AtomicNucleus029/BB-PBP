@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BuzzerBeater PBP Analyzer
 // @namespace    https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer
-// @version      0.0.4
+// @version      0.0.5
 // @description  Analyze Buzzerbeater play-by-play for more information.
 // @author       AtomicNucleus
 // @match        https://www.buzzerbeater.com/match/*/pbp.aspx
@@ -390,7 +390,8 @@
                         slice.includes("直接三分出手") ||
                         slice.includes("直接投了") ||
                         slice.includes("直接投三分") ||
-                        slice.includes("%半场拿球")
+                        slice.includes("%半场拿球") ||
+                        slice.includes("%在中圈接球")
                     ) // 三分投篮
                     {
                         category = category + "3";
