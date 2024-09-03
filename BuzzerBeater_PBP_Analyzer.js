@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BuzzerBeater PBP Analyzer
 // @namespace    https://greasyfork.org/zh-CN/scripts/487785-buzzerbeater-pbp-analyzer
-// @version      0.0.6
+// @version      0.0.7
 // @description  Analyze Buzzerbeater play-by-play for more information.
 // @author       AtomicNucleus
 // @match        https://www.buzzerbeater.com/match/*/pbp.aspx
@@ -1584,10 +1584,12 @@
         teamA[teamA.length - 1].ISA = addArrays(teamA[teamA.length - 1].ISA, teamA[i].ISA);
         teamA[teamA.length - 1].JSA = addArrays(teamA[teamA.length - 1].JSA, teamA[i].JSA);
         teamA[teamA.length - 1].P3A = addArrays(teamA[teamA.length - 1].P3A, teamA[i].P3A);
-        teamA[teamA.length - 1].ASTM = addArrays(teamA[teamA.length - 1].ASTM, teamA[i].ASTM);
-        teamA[teamA.length - 1].ASTA = addArrays(teamA[teamA.length - 1].ASTA, teamA[i].ASTA);
         teamA[teamA.length - 1].CONTESTM = addArrays(teamA[teamA.length - 1].CONTESTM, teamA[i].CONTESTM);
         teamA[teamA.length - 1].CONTESTA = addArrays(teamA[teamA.length - 1].CONTESTA, teamA[i].CONTESTA);
+        teamA[teamA.length - 1].ASTM = addArrays(teamA[teamA.length - 1].ASTM, teamA[i].ASTM);
+        teamA[teamA.length - 1].ASTA[0] = teamA[teamA.length-1].ISA[0] - teamA[teamA.length-1].ISA[1]
+        teamA[teamA.length - 1].ASTA[1] = teamA[teamA.length-1].JSA[0] - teamA[teamA.length-1].JSA[1]
+        teamA[teamA.length - 1].ASTA[2] = teamA[teamA.length-1].P3A[0] - teamA[teamA.length-1].P3A[1]
         teamA[teamA.length - 1].FTM += teamA[i].FTM;
         teamA[teamA.length - 1].FTA += teamA[i].FTA;
         teamA[teamA.length - 1].OREB += teamA[i].OREB;
@@ -1765,8 +1767,8 @@
             ((teamA[i].ISM[0] + teamA[i].JSM[0] + teamA[i].P3M[0]) / (teamA[i].ISA[0] + teamA[i].JSA[0] + teamA[i].P3A[0])).toFixed(3),
             `${teamA[i].ISM[1]+teamA[i].JSM[1]+teamA[i].P3M[1]} - ${teamA[i].ISA[1]+teamA[i].JSA[1]+teamA[i].P3A[1]}`,
             ((teamA[i].ISM[1] + teamA[i].JSM[1] + teamA[i].P3M[1]) / (teamA[i].ISA[1] + teamA[i].JSA[1] + teamA[i].P3A[1])).toFixed(3),
-            `${teamA[i].ISM[2]+teamA[i].JSM[2]+teamA[i].P3M[2]} - ${teamA[i].ISA[2]+teamA[i].JSA[2]+teamA[i].P3A[2]}`,
-            ((teamA[i].ISM[2] + teamA[i].JSM[2] + teamA[i].P3M[2]) / (teamA[i].ISA[2] + teamA[i].JSA[2] + teamA[i].P3A[2])).toFixed(3),
+            `${teamA[i].ISM[0] - teamA[i].ISM[1] + teamA[i].JSM[0] - teamA[i].JSM[1] + teamA[i].P3M[0] - teamA[i].P3M[1]} - ${teamA[i].ISA[0] - teamA[i].ISA[1] + teamA[i].JSA[0] - teamA[i].JSA[1] + teamA[i].P3A[0] - teamA[i].P3A[1]}`,
+            ((teamA[i].ISM[0] - teamA[i].ISM[1] + teamA[i].JSM[0] - teamA[i].JSM[1] + teamA[i].P3M[0] - teamA[i].P3M[1]) / (teamA[i].ISA[0] - teamA[i].ISA[1] + teamA[i].JSA[0] - teamA[i].JSA[1] + teamA[i].P3A[0] - teamA[i].P3A[1])).toFixed(3),
             `${teamA[i].ASTM[0]} - ${teamA[i].ASTA[0]}`,
             `${teamA[i].ASTM[1]} - ${teamA[i].ASTA[1]}`,
             `${teamA[i].ASTM[2]} - ${teamA[i].ASTA[2]}`,
@@ -1912,10 +1914,12 @@
         teamH[teamH.length - 1].ISA = addArrays(teamH[teamH.length - 1].ISA, teamH[i].ISA);
         teamH[teamH.length - 1].JSA = addArrays(teamH[teamH.length - 1].JSA, teamH[i].JSA);
         teamH[teamH.length - 1].P3A = addArrays(teamH[teamH.length - 1].P3A, teamH[i].P3A);
-        teamH[teamH.length - 1].ASTM = addArrays(teamH[teamH.length - 1].ASTM, teamH[i].ASTM);
-        teamH[teamH.length - 1].ASTA = addArrays(teamH[teamH.length - 1].ASTA, teamH[i].ASTA);
         teamH[teamH.length - 1].CONTESTM = addArrays(teamH[teamH.length - 1].CONTESTM, teamH[i].CONTESTM);
         teamH[teamH.length - 1].CONTESTA = addArrays(teamH[teamH.length - 1].CONTESTA, teamH[i].CONTESTA);
+        teamH[teamH.length - 1].ASTM = addArrays(teamH[teamH.length - 1].ASTM, teamH[i].ASTM);
+        teamH[teamH.length - 1].ASTA[0] = teamH[teamH.length-1].ISA[0] - teamH[teamH.length-1].ISA[1]
+        teamH[teamH.length - 1].ASTA[1] = teamH[teamH.length-1].JSA[0] - teamH[teamH.length-1].JSA[1]
+        teamH[teamH.length - 1].ASTA[2] = teamH[teamH.length-1].P3A[0] - teamH[teamH.length-1].P3A[1]
         teamH[teamH.length - 1].FTM += teamH[i].FTM;
         teamH[teamH.length - 1].FTA += teamH[i].FTA;
         teamH[teamH.length - 1].OREB += teamH[i].OREB;
@@ -2088,8 +2092,8 @@
             ((teamH[i].ISM[0] + teamH[i].JSM[0] + teamH[i].P3M[0]) / (teamH[i].ISA[0] + teamH[i].JSA[0] + teamH[i].P3A[0])).toFixed(3),
             `${teamH[i].ISM[1]+teamH[i].JSM[1]+teamH[i].P3M[1]} - ${teamH[i].ISA[1]+teamH[i].JSA[1]+teamH[i].P3A[1]}`,
             ((teamH[i].ISM[1] + teamH[i].JSM[1] + teamH[i].P3M[1]) / (teamH[i].ISA[1] + teamH[i].JSA[1] + teamH[i].P3A[1])).toFixed(3),
-            `${teamH[i].ISM[2]+teamH[i].JSM[2]+teamH[i].P3M[2]} - ${teamH[i].ISA[2]+teamH[i].JSA[2]+teamH[i].P3A[2]}`,
-            ((teamH[i].ISM[2] + teamH[i].JSM[2] + teamH[i].P3M[2]) / (teamH[i].ISA[2] + teamH[i].JSA[2] + teamH[i].P3A[2])).toFixed(3),
+            `${teamH[i].ISM[0] - teamH[i].ISM[1] + teamH[i].JSM[0] - teamH[i].JSM[1] + teamH[i].P3M[0] - teamH[i].P3M[1]} - ${teamH[i].ISA[0] - teamH[i].ISA[1] + teamH[i].JSA[0] - teamH[i].JSA[1] + teamH[i].P3A[0] - teamH[i].P3A[1]}`,
+            ((teamH[i].ISM[0] - teamH[i].ISM[1] + teamH[i].JSM[0] - teamH[i].JSM[1] + teamH[i].P3M[0] - teamH[i].P3M[1]) / (teamH[i].ISA[0] - teamH[i].ISA[1] + teamH[i].JSA[0] - teamH[i].JSA[1] + teamH[i].P3A[0] - teamH[i].P3A[1])).toFixed(3),
             `${teamH[i].ASTM[0]} - ${teamH[i].ASTA[0]}`,
             `${teamH[i].ASTM[1]} - ${teamH[i].ASTA[1]}`,
             `${teamH[i].ASTM[2]} - ${teamH[i].ASTA[2]}`,
